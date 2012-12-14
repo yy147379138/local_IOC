@@ -1,0 +1,32 @@
+This folder contains all the source file for Inverse Optimal Control/Learning project
+
+Explaination for the files:
+evidence.h/cpp: read trajectory files and hold the trajectory (either grid or real-valued point) in vector
+grid.h/cpp: build discrete world from .bmp map
+features.h/cpp: build discrete feature map from grid
+options.h: helper functions
+visualize.h/cpp: draw a matrix (held in vector<vector<double> >) into bmp image
+mymath.h: header for matrices
+inference.h/cpp: define the inverse MDP model
+inferenceplus.cpp: define the inverse MDP model with velocity feature
+optimization.h/cpp: define the optimizer for the inverse MDP model
+linearquadratic.h/cpp: define the inverse LQ model and the optimizer for the model
+intent.h/cpp: defines the hybrid model
+
+train.cpp: script to train the inverse MDP model
+forecast.cpp: script to predict using the inverse MDP model
+trainLQ.cpp: script to train the inverse LQ model
+lqforecast.cpp: script to predict using the inverse LQ model
+forecastplus: script to predict using the hybrid LQ model
+
+HOW TO RUN
+Run in the src folder:
+../exec/train.exe --map input/map.bmp --evidence data/*.sicktraj --rate learning rate --itrs iteration times -acc accuracy -w write parameters or not
+Needs to create a figures folder in the root foler to hold the images
+../exec/trainLQ.exe --map input/map.bmp --evidence data/*.sicktraj --rate learning rate --times iteration times --thresh accuracy -write write parameters or not
+../exec/forecast.exe --map input/map.bmp --evidence data/*.sicktraj --factor 1
+Needs folder comapre and output under the root folder
+../exec/lqforecast --map input/map.bmp --evidence data/*.sicktraj --interval (prediction cycle interval)
+Needs folder comapre and output under the root folder
+
+Please go to /data and ../params for other README files.

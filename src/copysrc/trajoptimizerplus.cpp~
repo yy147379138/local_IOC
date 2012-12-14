@@ -1,0 +1,142 @@
+#include "main.h"
+#include "options.h"
+#include "grid.h"
+#include "evidence.h"
+#include "features.h"
+#include "inference.h"
+#include "optimization.h"
+#include <math.h>
+
+class trajectoryOptimizer : public Optimizer {
+   public:
+      trajectoryOptimizer(Grid &_grid, Evidence &_evidence,
+            vector<PosFeature> &_features, InferenceEngine &_engine);
+      double eval(vector<double> &params);
+   protected:
+      Grid &grid;
+      Evidence &evidence;
+      vector<PosFeature> &features;
+      DisSeqOrderInferEngine &engine;
+};
+
+trajectoryOptimizer::trajectoryOptimizer(Grid &_grid, Evidence &_evidence,
+            vector<PosFeature> &_features, InferenceEngine &_engine) 
+            : grid(_grid), evidence(_evidence), features(_features),
+            engine(_engine) {
+
+
+
+}
+
+double trajectoryOptimizer::eval(vector<double> &params) {
+
+   cout << "IN EVAL   "<<params.size()<<endl;
+
+
+   for (int i=0; i < params.size(); i++) 
+      cout << "PARAMS IN: "<<i<<" "<<params.at(i)<<endl;
+
+   int factor = evidence.getFactor();
+
+   cout << "FACTOR: "<<factor<<endl;
+  
+   FeatureArray featArray2(features);
+
+   FeatureArray featArray(featArray2, factor);
+   cout<<"Dims featarray  "<<featArray.dims().first<<" "<<featArray.dims().second<<endl;
+
+   Parameters parameters(params);
+
+   cout << "Calculating rewards"<<endl;
+
+   RewardMap rewards(featArray, parameters); 
+
+   pair<int, int> dims = grid.dims();
+
+   BMPFile gridView(dims.first, dims.second);
+
+   pair<int, int> lowDims((int)ceil((float)dims.first/factor),
+         (int)ceil((float)dims.second/factor));
+
+   cout << "Computing prior"<<endl;
+   vector<vector<double> > prior(lowDims.first, vector<double>(lowDims.second, 
+            -HUGE_VAL)); 
+
+   double obj = 0.0;
+   vector<double> gradient(params.size(), 0.0); 
+
+   for (int i=0; i < evidence.size(); i++) {
+
+      Predictor predictor(grid, rewards, engine); 
+
+      cout << "Evidence #"<<i<<endl;
+      vector<pair<int, int> > trajectory = evidence.at(i);
+
+      double cost = 0.0;
+      for (int j=0; j < trajectory.size(); j++)
+         cost+=rewards.at(trajectory.at(j).first, trajectory.at(j).second);
+	  
+      pair<int, int> initial = trajectory.front();
+      pair<int, int> destination = trajectory.back();
+
+      prior.at(destination.first).at(destination.second) = 0.0;
+
+      cout << "Initial: "<<initial.first<<"  "<<initial.second<<endl;
+      cout << "Destination: "<<destination.first<<"  "
+         <<destination.second<<endl;
+      predictor.setStart(initial);
+      predictor.setPrior(prior);
+
+      vector<vector<double> > occupancy;
+      double norm = predictor.predict(initial, occupancy);
+
+      gridView.addBelief(occupancy, -200.0, 0.0, white, red);
+
+      //grid.addObstacles(gridView, black);
+
+      gridView.addVector(trajectory, blue, factor);
+
+      char buf[1024];
+      sprintf(buf, "../figures/train%04d.bmp", i);
+      gridView.write(buf);
+
+      vector<double> modelFeats, pathFeats;
+
+      cout << "Computing feature counts"<<endl;
+
+	  /*
+      for (int i=0; i < occupancy.size(); i++)
+         for (int j=0; j < occupancy.at(i).size(); j++) 
+            if (occupancy.at(i).at(j) > -10)
+               cout << i <<" "<<j<<"    "<<occupancy.at(i).at(j)<<endl; 
+      */
+
+      featArray.featureCounts(occupancy, modelFeats);
+
+      featArray.featureCounts(trajectory, pathFeats);
+
+      cout << "GRADIENT"<<endl;
+
+      for (int k=0; k < params.size(); k++) {
+         double diff = pathFeats.at(k) - modelFeats.at(k);
+         gradient.at(k) -= diff;
+         cout << k << ": " << gradient.at(k) << "    " << pathFeats.at(k)
+            << " " << modelFeats.at(k) <<endl;
+      }
+
+      cout << "OBJ: "<<cost-norm<<endl;
+      cout << "     "<<cost<<"  "<<norm<<endl;
+      obj += (cost - norm);
+
+      prior.at(destination.first).at(destination.second) = -HUGE_VAL; 
+   }
+
+   cout << "RETURN OBJ: "<<-obj<<endl;
+
+   params = gradient;
+
+   return -obj;
+}
+ 
+
+
